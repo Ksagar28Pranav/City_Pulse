@@ -10,9 +10,9 @@ export default function Dashboard() {
   const [token, setToken] = useState("");
 
   useEffect(() => {
-    const t = localStorage.getItem("token");
+    const t = localStorage.getItem("token");q
     const r = localStorage.getItem("role");
-    if (!t) router.push("/"); // redirect if not logged in
+    if (!t) router.push("/"); 
     setToken(t);
     setRole(r);
   }, [router]);

@@ -14,7 +14,7 @@ export default function Signup() {
     e.preventDefault();
     try {
       await signup(form);
-      router.push("/"); // redirect to login
+      router.push("/"); 
     } catch (err) {
       setMsg(err.response?.data?.msg || "Error");
     }

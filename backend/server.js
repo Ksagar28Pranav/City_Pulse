@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ["citizen", "officer"], default: "citizen" },
   createdAt: { type: Date, default: Date.now },
 });
-
+// 
 const reportSchema = new mongoose.Schema({
   citizenId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   type: String,
