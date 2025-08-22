@@ -15,3 +15,9 @@ export const getMyReports = (token) =>
 
 export const getAllReports = (token) =>
   API.get("/reports", { headers: { Authorization: `Bearer ${token}` } });
+
+export const getOverdueReports = (token) =>
+  API.get("/reports/overdue", { headers: { Authorization: `Bearer ${token}` } });
+
+export const updateReportStatus = (id, status, token) =>
+  API.patch(`/reports/${id}/status`, { status }, { headers: { Authorization: `Bearer ${token}` } });

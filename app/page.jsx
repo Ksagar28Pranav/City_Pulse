@@ -1,4 +1,4 @@
-import UrbanGrowthTracker from "./UrbanGrowthTracker";
+import UrbanGrowthTracker from "./components/UrbanGrowthTracker";
 
 export default function Page() {
   return <UrbanGrowthTracker />;

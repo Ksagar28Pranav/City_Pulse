@@ -11,7 +11,7 @@ app.use(cors());
 
 const PORT = 5000;
 const JWT_SECRET = "supersecretkey"; 
-const MONGO_URI = "mongodb+srv://nakulpise831:nakul1381@cluster0.h4om8.mongodb.net/city_pulse"; 
+const MONGO_URI = "mongodb+srv://nakulpise831:nakul1381@cluster0.h4om8.mongodb.net/City_Pulse"; 
 
 const userSchema = new mongoose.Schema({
   username: { type: String, unique: true },
@@ -26,8 +26,19 @@ const reportSchema = new mongoose.Schema({
   description: String,
   lat: Number,
   lng: Number,
-  status: { type: String, enum: ["pending", "resolved"], default: "pending" },
+  status: { type: String, enum: ["not_done", "in_progress", "finished"], default: "not_done" },
   createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+reportSchema.pre("save", function(next) {
+  this.updatedAt = new Date();
+  next();
+});
+
+reportSchema.pre(["updateOne", "findOneAndUpdate"], function(next) {
+  this.set({ updatedAt: new Date() });
+  next();
 });
 
 const User = mongoose.model("User", userSchema);
@@ -99,6 +110,31 @@ app.get("/reports/mine", auth(["citizen"]), async (req, res) => {
 app.get("/reports", auth(["officer"]), async (req, res) => {
   const reports = await Report.find().populate("citizenId", "username");
   res.json(reports);
+});
+
+// Update report status (officers)
+app.patch("/reports/:id/status", auth(["officer"]), async (req, res) => {
+  const { status } = req.body; // expected: not_done | in_progress | finished
+  if (!['not_done','in_progress','finished'].includes(status)) {
+    return res.status(400).json({ msg: 'Invalid status' });
+  }
+  const updated = await Report.findByIdAndUpdate(
+    req.params.id,
+    { status },
+    { new: true }
+  ).populate("citizenId", "username");
+  if (!updated) return res.status(404).json({ msg: 'Report not found' });
+  res.json(updated);
+});
+
+// Overdue reports (> 48 hours since creation and not finished)
+app.get("/reports/overdue", auth(["officer"]), async (req, res) => {
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  const overdue = await Report.find({
+    createdAt: { $lte: cutoff },
+    status: { $ne: 'finished' }
+  }).populate("citizenId", "username");
+  res.json(overdue);
 });
 
 mongoose.connect(MONGO_URI)
