@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import CreateReport from "../../components/CreateReport";
 import ReportsList from "../../components/ReportsList";
+import VoiceAssistant from "../../components/VoiceAssistant";
+import MobileVoiceAssistant from "../../components/MobileVoiceAssistant";
+import FloatingVoiceButton from "../../components/FloatingVoiceButton";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -10,6 +13,7 @@ export default function Dashboard() {
   const [token, setToken] = useState("");
   const [isVisible, setIsVisible] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem("token");
@@ -18,6 +22,16 @@ export default function Dashboard() {
     setToken(t);
     setRole(r);
     setIsVisible(true);
+    
+    // Check if device is mobile
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
   }, [router]);
 
   const handleLogout = () => {
@@ -108,12 +122,32 @@ export default function Dashboard() {
 
           {/* Citizen Report Creation */}
           {role === "citizen" && (
-            <div className="animate-slide-in">
-              <CreateReport 
-                token={token} 
-                onReportCreated={handleReportCreated}
-              />
-            </div>
+            <>
+              {/* Voice Assistant */}
+              <div className="animate-slide-in">
+                {isMobile ? (
+                  <MobileVoiceAssistant 
+                    token={token} 
+                    onReportCreated={handleReportCreated}
+                    role={role}
+                  />
+                ) : (
+                  <VoiceAssistant 
+                    token={token} 
+                    onReportCreated={handleReportCreated}
+                    role={role}
+                  />
+                )}
+              </div>
+              
+              {/* Manual Report Creation */}
+              <div className="animate-slide-in">
+                <CreateReport 
+                  token={token} 
+                  onReportCreated={handleReportCreated}
+                />
+              </div>
+            </>
           )}
 
           {/* Reports Section */}
@@ -133,6 +167,14 @@ export default function Dashboard() {
           © 2024 City Pulse. Empowering communities through technology.
         </div>
       </footer>
+
+      {/* Floating Voice Button for Mobile */}
+      {isMobile && role === "citizen" && (
+        <FloatingVoiceButton 
+          token={token} 
+          onReportCreated={handleReportCreated}
+        />
+      )}
     </div>
   );
 }
