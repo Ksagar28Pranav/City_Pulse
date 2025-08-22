@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ["citizen", "officer"], default: "citizen" },
   createdAt: { type: Date, default: Date.now },
 });
-// 
+
 const reportSchema = new mongoose.Schema({
   citizenId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   type: String,
@@ -29,16 +29,46 @@ const reportSchema = new mongoose.Schema({
   status: { type: String, enum: ["not_done", "in_progress", "finished"], default: "not_done" },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
+  warnings: { type: Number, default: 0 },
+  lastWarningAt: { type: Date },
+  isOverdue: { type: Boolean, default: false },
 });
 
 reportSchema.pre("save", function(next) {
   this.updatedAt = new Date();
+  
+  // Check if report is overdue (48 hours)
+  const hoursSinceCreation = (Date.now() - this.createdAt.getTime()) / (1000 * 60 * 60);
+  this.isOverdue = hoursSinceCreation > 48 && this.status !== 'finished';
+  
+  // Add warning if overdue and no warning in last 24 hours
+  if (this.isOverdue && this.status !== 'finished') {
+    const hoursSinceLastWarning = this.lastWarningAt ? 
+      (Date.now() - this.lastWarningAt.getTime()) / (1000 * 60 * 60) : 999;
+    
+    if (hoursSinceLastWarning >= 24) {
+      this.warnings += 1;
+      this.lastWarningAt = new Date();
+    }
+  }
+  
   next();
 });
 
 reportSchema.pre(["updateOne", "findOneAndUpdate"], function(next) {
   this.set({ updatedAt: new Date() });
   next();
+});
+
+// Virtual for time since creation
+reportSchema.virtual('hoursSinceCreation').get(function() {
+  return Math.floor((Date.now() - this.createdAt.getTime()) / (1000 * 60 * 60));
+});
+
+// Virtual for time remaining before overdue
+reportSchema.virtual('hoursUntilOverdue').get(function() {
+  const hoursSinceCreation = (Date.now() - this.createdAt.getTime()) / (1000 * 60 * 60);
+  return Math.max(0, 48 - hoursSinceCreation);
 });
 
 const User = mongoose.model("User", userSchema);
@@ -99,17 +129,42 @@ app.post("/reports", auth(["citizen"]), async (req, res) => {
     lat,
     lng,
   });
-  res.json(newReport);
+  
+  // Populate citizen info and add virtual fields
+  const populatedReport = await Report.findById(newReport._id).populate("citizenId", "username");
+  const reportWithVirtuals = populatedReport.toObject();
+  reportWithVirtuals.hoursSinceCreation = populatedReport.hoursSinceCreation;
+  reportWithVirtuals.hoursUntilOverdue = populatedReport.hoursUntilOverdue;
+  
+  res.json(reportWithVirtuals);
 });
 
 app.get("/reports/mine", auth(["citizen"]), async (req, res) => {
-  const reports = await Report.find({ citizenId: req.user.userId });
-  res.json(reports);
+  const reports = await Report.find({ citizenId: req.user.userId }).populate("citizenId", "username");
+  
+  // Add virtual fields to each report
+  const reportsWithVirtuals = reports.map(report => {
+    const reportObj = report.toObject();
+    reportObj.hoursSinceCreation = report.hoursSinceCreation;
+    reportObj.hoursUntilOverdue = report.hoursUntilOverdue;
+    return reportObj;
+  });
+  
+  res.json(reportsWithVirtuals);
 });
 
 app.get("/reports", auth(["officer"]), async (req, res) => {
   const reports = await Report.find().populate("citizenId", "username");
-  res.json(reports);
+  
+  // Add virtual fields to each report
+  const reportsWithVirtuals = reports.map(report => {
+    const reportObj = report.toObject();
+    reportObj.hoursSinceCreation = report.hoursSinceCreation;
+    reportObj.hoursUntilOverdue = report.hoursUntilOverdue;
+    return reportObj;
+  });
+  
+  res.json(reportsWithVirtuals);
 });
 
 // Update report status (officers)
@@ -123,8 +178,15 @@ app.patch("/reports/:id/status", auth(["officer"]), async (req, res) => {
     { status },
     { new: true }
   ).populate("citizenId", "username");
+  
   if (!updated) return res.status(404).json({ msg: 'Report not found' });
-  res.json(updated);
+  
+  // Add virtual fields
+  const reportWithVirtuals = updated.toObject();
+  reportWithVirtuals.hoursSinceCreation = updated.hoursSinceCreation;
+  reportWithVirtuals.hoursUntilOverdue = updated.hoursUntilOverdue;
+  
+  res.json(reportWithVirtuals);
 });
 
 // Overdue reports (> 48 hours since creation and not finished)
@@ -134,7 +196,33 @@ app.get("/reports/overdue", auth(["officer"]), async (req, res) => {
     createdAt: { $lte: cutoff },
     status: { $ne: 'finished' }
   }).populate("citizenId", "username");
-  res.json(overdue);
+  
+  // Add virtual fields to each report
+  const reportsWithVirtuals = overdue.map(report => {
+    const reportObj = report.toObject();
+    reportObj.hoursSinceCreation = report.hoursSinceCreation;
+    reportObj.hoursUntilOverdue = report.hoursUntilOverdue;
+    return reportObj;
+  });
+  
+  res.json(reportsWithVirtuals);
+});
+
+// Get reports with warnings (for officer dashboard)
+app.get("/reports/warnings", auth(["officer"]), async (req, res) => {
+  const reportsWithWarnings = await Report.find({
+    warnings: { $gt: 0 }
+  }).populate("citizenId", "username");
+  
+  // Add virtual fields to each report
+  const reportsWithVirtuals = reportsWithWarnings.map(report => {
+    const reportObj = report.toObject();
+    reportObj.hoursSinceCreation = report.hoursSinceCreation;
+    reportObj.hoursUntilOverdue = report.hoursUntilOverdue;
+    return reportObj;
+  });
+  
+  res.json(reportsWithVirtuals);
 });
 
 mongoose.connect(MONGO_URI)
