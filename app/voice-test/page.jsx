@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 "use client"
-=======
-"use client";
->>>>>>> de17274970591b8e654556ccd3ef3a2196e40b6f
 import { useState, useEffect } from "react";
 import VoiceAssistant from "../components/VoiceAssistant";
 import MobileVoiceAssistant from "../components/MobileVoiceAssistant";
@@ -14,17 +10,6 @@ export default function VoiceTestPage() {
   const [locationError, setLocationError] = useState(null);
 
   useEffect(() => {
-<<<<<<< HEAD
-    // Check if mobile on component mount
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
-=======
     if (typeof window !== "undefined") {
       setIsMobile(window.innerWidth <= 768);
 
@@ -56,7 +41,6 @@ export default function VoiceTestPage() {
         }
       );
     }
->>>>>>> de17274970591b8e654556ccd3ef3a2196e40b6f
   }, []);
 
   const handleTestReport = (report) => {
@@ -83,7 +67,6 @@ export default function VoiceTestPage() {
           </p>
         </div>
 
-<<<<<<< HEAD
         {/* Instructions */}
         <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
           <h2 className="text-xl font-bold mb-3">📋 How to Use (IMPROVED):</h2>
@@ -95,14 +78,13 @@ export default function VoiceTestPage() {
             <li>5. <strong>Listen for confirmation</strong> and check the reports below</li>
           </ol>
         </div>
-=======
+
         {/* Location status */}
         {locationError && (
           <div className="bg-red-500/20 border border-red-500/40 text-red-300 rounded-lg p-3 text-sm">
             ⚠️ {locationError}
           </div>
         )}
->>>>>>> de17274970591b8e654556ccd3ef3a2196e40b6f
 
         {/* Important Note */}
         <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4">
@@ -184,7 +166,6 @@ export default function VoiceTestPage() {
             </div>
           </div>
         )}
-<<<<<<< HEAD
 
         {/* Troubleshooting */}
         <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-lg p-4">
@@ -208,8 +189,6 @@ export default function VoiceTestPage() {
           </a>
         </div>
 
-=======
->>>>>>> de17274970591b8e654556ccd3ef3a2196e40b6f
       </div>
     </div>
   );

@@ -14,78 +14,53 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
 
   // Initialize speech recognition and synthesis
   useEffect(() => {
-<<<<<<< HEAD
-    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
-      recognitionRef.current = new window.webkitSpeechRecognition();
-      recognitionRef.current.continuous = true; // Keep listening
-      recognitionRef.current.interimResults = true; // Get interim results
-      recognitionRef.current.lang = 'en-US';
-      recognitionRef.current.maxAlternatives = 1;
-=======
     if (typeof window !== "undefined") {
       const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRec) {
         recognitionRef.current = new SpeechRec();
-        recognitionRef.current.continuous = false;
-        recognitionRef.current.interimResults = false;
+        recognitionRef.current.continuous = true; // Keep listening
+        recognitionRef.current.interimResults = true; // Get interim results
         recognitionRef.current.lang = "en-US";
->>>>>>> de17274970591b8e654556ccd3ef3a2196e40b6f
+        recognitionRef.current.maxAlternatives = 1;
 
         recognitionRef.current.onstart = () => {
           setIsListening(true);
           setFeedback("🎤 Listening... Speak now!");
-          speakMultiple(["I'm listening.", "Please describe the issue and location."], 500);
+          speak("I'm listening. Please describe the issue and location.");
         };
 
-<<<<<<< HEAD
-      recognitionRef.current.onresult = (event) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        // Show interim results while speaking
-        if (interimTranscript) {
-          setTranscript(interimTranscript);
-        }
-
-        // Process final result when user stops speaking
-        if (finalTranscript) {
-          setTranscript(finalTranscript);
-          processVoiceCommand(finalTranscript);
-        }
-      };
-
-      recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        if (event.error !== 'no-speech') {
-          setIsListening(false);
-          setFeedback("Error: " + event.error);
-        }
-      };
-=======
         recognitionRef.current.onresult = (event) => {
-          let text = "";
+          let finalTranscript = '';
+          let interimTranscript = '';
+
           for (let i = event.resultIndex; i < event.results.length; i++) {
-            text += event.results[i][0].transcript;
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript;
+            } else {
+              interimTranscript += transcript;
+            }
           }
-          setTranscript(text);
-          processVoiceCommand(text);
+
+          // Show interim results while speaking
+          if (interimTranscript) {
+            setTranscript(interimTranscript);
+          }
+
+          // Process final result when user stops speaking
+          if (finalTranscript) {
+            setTranscript(finalTranscript);
+            processVoiceCommand(finalTranscript);
+          }
         };
 
         recognitionRef.current.onerror = (event) => {
           console.error("Speech recognition error:", event?.error || event);
-          setIsListening(false);
-          setFeedback("❌ Speech recognition error: " + (event?.error || "unknown"));
+          if (event?.error !== 'no-speech') {
+            setIsListening(false);
+            setFeedback("❌ Speech recognition error: " + (event?.error || "unknown"));
+          }
         };
->>>>>>> de17274970591b8e654556ccd3ef3a2196e40b6f
 
         recognitionRef.current.onend = () => {
           setIsListening(false);
@@ -115,13 +90,6 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
       utterance.pitch = 1;
       synthesisRef.current.speak(utterance);
     }
-  };
-
-  // Speak multiple phrases with delay between them
-  const speakMultiple = (texts, delay = 500) => {
-    texts.forEach((text, index) => {
-      setTimeout(() => speak(text), index * delay);
-    });
   };
 
   const getUserLocation = () => {
@@ -207,7 +175,7 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
         const response = await createReport(reportData, token);
 
         setFeedback(`✅ Report created! Issue: ${parsedData.issueType} at ${parsedData.location}`);
-        speakMultiple([`Report submitted successfully.`, `A ${parsedData.issueType} issue has been reported at ${parsedData.location}.`], 700);
+        speak(`Report submitted successfully. A ${parsedData.issueType} issue has been reported at ${parsedData.location}.`);
 
         if (onReportCreated) onReportCreated(response.data);
 
@@ -217,12 +185,12 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
         }, 5000);
       } else {
         setFeedback("❌ Could not understand the command. Please try again.");
-        speakMultiple(["I couldn't understand your command.", "Please try speaking more clearly, including location."], 700);
+        speak("I couldn't understand your command. Please try speaking more clearly, including location.");
       }
     } catch (error) {
       console.error("Error processing voice command:", error);
       setFeedback("❌ Error creating report. Please try again.");
-      speakMultiple(["Sorry, there was an error creating your report.", "Please try again."], 700);
+      speak("Sorry, there was an error creating your report. Please try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -325,6 +293,7 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
     if (isListening) stopListening();
     else startListening();
   };
+
   return (
     <div className="card-dark p-6 space-y-6">
       <div className="flex items-center space-x-3 mb-6">
@@ -349,62 +318,16 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
         </span>
       </div>
 
-<<<<<<< HEAD
-             {/* Voice Control Button */}
-       <div className="flex justify-center space-x-4">
-         <button
-           onClick={toggleListening}
-           disabled={isProcessing || !isLocationEnabled}
-           className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
-             isListening 
-               ? 'bg-red-500 animate-pulse shadow-lg shadow-red-500/50' 
-               : 'bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
-           } ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
-         >
-           {isListening ? (
-             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-             </svg>
-           ) : (
-             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-             </svg>
-           )}
-         </button>
-         
-         {isListening && (
-           <button
-             onClick={stopListening}
-             className="w-20 h-20 bg-gray-600 hover:bg-gray-700 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105"
-             title="Stop Listening"
-           >
-             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-             </svg>
-           </button>
-         )}
-       </div>
-
-             {/* Status and Feedback */}
-       <div className="text-center space-y-2">
-         <p className="text-lg font-medium">
-           {isListening ? "🎤 Listening... Speak now!" : isProcessing ? "🔄 Processing..." : "Tap to speak"}
-         </p>
-         {isListening && (
-           <p className="text-sm text-gray-400">
-             Speak clearly and click the X button when done
-           </p>
-         )}
-=======
-      {/* Voice Control */}
-      <div className="flex justify-center">
+      {/* Voice Control Button */}
+      <div className="flex justify-center space-x-4">
         <button
           onClick={toggleListening}
-          disabled={isProcessing}
+          disabled={isProcessing || !isLocationEnabled}
           className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
-            isListening ? "bg-red-500 animate-pulse shadow-lg shadow-red-500/50" : "bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
-          } ${isProcessing ? "opacity-50 cursor-not-allowed" : "hover:scale-105"}`}
+            isListening 
+              ? 'bg-red-500 animate-pulse shadow-lg shadow-red-500/50' 
+              : 'bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
+          } ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
         >
           {isListening ? (
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -417,14 +340,30 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
             </svg>
           )}
         </button>
+        
+        {isListening && (
+          <button
+            onClick={stopListening}
+            className="w-20 h-20 bg-gray-600 hover:bg-gray-700 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105"
+            title="Stop Listening"
+          >
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      {/* Status */}
+      {/* Status and Feedback */}
       <div className="text-center space-y-2">
         <p className="text-lg font-medium">
-          {isListening ? "Listening..." : isProcessing ? "Processing..." : "Tap to speak"}
+          {isListening ? "🎤 Listening... Speak now!" : isProcessing ? "🔄 Processing..." : "Tap to speak"}
         </p>
->>>>>>> de17274970591b8e654556ccd3ef3a2196e40b6f
+        {isListening && (
+          <p className="text-sm text-gray-400">
+            Speak clearly and click the X button when done
+          </p>
+        )}
         {feedback && (
           <div className={`p-3 rounded-lg text-sm ${
             feedback.includes("✅")
@@ -438,7 +377,7 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
         )}
       </div>
 
-      {/* Transcript */}
+      {/* Transcript Display */}
       {transcript && (
         <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
           <h3 className="text-sm font-medium text-gray-300 mb-2">Voice Input:</h3>
@@ -446,7 +385,7 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
         </div>
       )}
 
-      {/* Examples */}
+      {/* Voice Command Examples */}
       <div className="p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg border border-blue-500/20">
         <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
           <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -455,15 +394,28 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
           <span>Voice Command Examples</span>
         </h3>
         <div className="space-y-2 text-sm text-gray-300">
-          <p>"There's a pothole on Trimbak Highway"</p>
-          <p>"Streetlight not working on College Road"</p>
-          <p>"Garbage collection issue in Panchavati area"</p>
-          <p>"Traffic signal broken on Mumbai Nashik Highway"</p>
+          <p className="flex items-start space-x-2">
+            <span className="text-blue-400 mt-1">•</span>
+            <span>"There's a pothole on Trimbak Highway"</span>
+          </p>
+          <p className="flex items-start space-x-2">
+            <span className="text-blue-400 mt-1">•</span>
+            <span>"Streetlight not working on College Road"</span>
+          </p>
+          <p className="flex items-start space-x-2">
+            <span className="text-blue-400 mt-1">•</span>
+            <span>"Garbage collection issue in Panchavati area"</span>
+          </p>
+          <p className="flex items-start space-x-2">
+            <span className="text-blue-400 mt-1">•</span>
+            <span>"Traffic signal broken on Mumbai Nashik Highway"</span>
+          </p>
         </div>
       </div>
 
+      {/* Instructions */}
       <div className="text-xs text-gray-500 text-center">
-        <p>Mention the issue type and location clearly.</p>
+        <p>Make sure to mention the issue type and location clearly.</p>
         <p>Your current location will be used if no specific location is mentioned.</p>
       </div>
     </div>
