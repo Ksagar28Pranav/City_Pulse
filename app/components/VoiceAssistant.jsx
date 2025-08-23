@@ -8,52 +8,58 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
   const [feedback, setFeedback] = useState("");
   const [userLocation, setUserLocation] = useState(null);
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
-  
+
   const recognitionRef = useRef(null);
   const synthesisRef = useRef(null);
 
-  // Initialize speech recognition
+  // Initialize speech recognition and synthesis
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
-      recognitionRef.current = new window.webkitSpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'en-US';
+    if (typeof window !== "undefined") {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRec) {
+        recognitionRef.current = new SpeechRec();
+        recognitionRef.current.continuous = false;
+        recognitionRef.current.interimResults = false;
+        recognitionRef.current.lang = "en-US";
 
-      recognitionRef.current.onstart = () => {
-        setIsListening(true);
-        setFeedback("Listening... Speak now!");
-        speak("I'm listening. Please describe the issue and location.");
-      };
+        recognitionRef.current.onstart = () => {
+          setIsListening(true);
+          setFeedback("🎤 Listening... Speak now!");
+          speakMultiple(["I'm listening.", "Please describe the issue and location."], 500);
+        };
 
-      recognitionRef.current.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setTranscript(transcript);
-        processVoiceCommand(transcript);
-      };
+        recognitionRef.current.onresult = (event) => {
+          let text = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            text += event.results[i][0].transcript;
+          }
+          setTranscript(text);
+          processVoiceCommand(text);
+        };
 
-      recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-        setFeedback("Error: " + event.error);
-      };
+        recognitionRef.current.onerror = (event) => {
+          console.error("Speech recognition error:", event?.error || event);
+          setIsListening(false);
+          setFeedback("❌ Speech recognition error: " + (event?.error || "unknown"));
+        };
 
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
+        recognitionRef.current.onend = () => {
+          setIsListening(false);
+        };
+      } else {
+        console.warn("SpeechRecognition not supported in this browser.");
+      }
+
+      if ("speechSynthesis" in window) {
+        synthesisRef.current = window.speechSynthesis;
+      }
     }
-
-    // Initialize speech synthesis
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      synthesisRef.current = window.speechSynthesis;
-    }
-
-    // Get user location on component mount
-    getUserLocation();
 
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {}
       }
     };
   }, []);
@@ -67,120 +73,156 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
     }
   };
 
+  // Speak multiple phrases with delay between them
+  const speakMultiple = (texts, delay = 500) => {
+    texts.forEach((text, index) => {
+      setTimeout(() => speak(text), index * delay);
+    });
+  };
+
   const getUserLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-          setIsLocationEnabled(true);
-          console.log('User location obtained:', position.coords);
-        },
-        (error) => {
-          console.error('Location error:', error);
+    return new Promise((resolve) => {
+      if (!("geolocation" in navigator)) {
+        setFeedback("❌ Geolocation is not supported by this browser.");
+        setIsLocationEnabled(false);
+        resolve(null);
+        return;
+      }
+
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions
+          .query({ name: "geolocation" })
+          .then((permStatus) => {
+            if (permStatus.state === "denied") {
+              setFeedback("❌ Location permission blocked. Enable it in browser settings.");
+              setIsLocationEnabled(false);
+              resolve(null);
+            } else {
+              callGetCurrentPosition(resolve);
+            }
+          })
+          .catch(() => callGetCurrentPosition(resolve));
+      } else {
+        callGetCurrentPosition(resolve);
+      }
+
+      function callGetCurrentPosition(resolveInner) {
+        try {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const coords = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+              };
+              setUserLocation(coords);
+              setIsLocationEnabled(true);
+              setFeedback("");
+              console.log("✅ User location obtained:", position.coords);
+              resolveInner(coords);
+            },
+            (error) => {
+              console.error("❌ Location error:", error);
+              let message = "⚠️ Location access denied. Please enable location services.";
+              if (error && typeof error.code === "number") {
+                if (error.code === 1) message = "❌ Permission denied for location.";
+                else if (error.code === 2) message = "⚠️ Location unavailable.";
+                else if (error.code === 3) message = "⏳ Location request timed out.";
+              }
+              setFeedback(message);
+              setIsLocationEnabled(false);
+              resolveInner(null);
+            },
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
+          );
+        } catch (err) {
+          console.error("Error calling getCurrentPosition:", err);
+          setFeedback("❌ Error requesting location.");
           setIsLocationEnabled(false);
-          setFeedback("Location access denied. Please enable location services.");
+          resolveInner(null);
         }
-      );
-    } else {
-      setFeedback("Geolocation is not supported by this browser.");
-    }
+      }
+    });
   };
 
   const processVoiceCommand = async (command) => {
     setIsProcessing(true);
-    setFeedback("Processing your voice command...");
-    
+    setFeedback("⏳ Processing your voice command...");
+
     try {
-      // Parse the voice command
       const parsedData = parseVoiceCommand(command);
-      
+
       if (parsedData) {
-        // Create the report
         const reportData = {
           type: parsedData.issueType,
           description: parsedData.description,
           lat: userLocation?.lat || parsedData.lat,
           lng: userLocation?.lng || parsedData.lng,
-          voiceCommand: command // Store original voice command
+          voiceCommand: command,
         };
 
         const response = await createReport(reportData, token);
-        
-        setFeedback(`✅ Report created successfully! Issue: ${parsedData.issueType} at ${parsedData.location}`);
-        speak(`Report submitted successfully. A ${parsedData.issueType} issue has been reported at ${parsedData.location}. Report ID: ${response.data._id}`);
-        
-        // Notify parent component
-        if (onReportCreated) {
-          onReportCreated(response.data);
-        }
-        
-        // Clear transcript after successful submission
+
+        setFeedback(`✅ Report created! Issue: ${parsedData.issueType} at ${parsedData.location}`);
+        speakMultiple([`Report submitted successfully.`, `A ${parsedData.issueType} issue has been reported at ${parsedData.location}.`], 700);
+
+        if (onReportCreated) onReportCreated(response.data);
+
         setTimeout(() => {
           setTranscript("");
           setFeedback("");
         }, 5000);
-        
       } else {
         setFeedback("❌ Could not understand the command. Please try again.");
-        speak("I couldn't understand your command. Please try speaking more clearly.");
+        speakMultiple(["I couldn't understand your command.", "Please try speaking more clearly, including location."], 700);
       }
     } catch (error) {
-      console.error('Error processing voice command:', error);
+      console.error("Error processing voice command:", error);
       setFeedback("❌ Error creating report. Please try again.");
-      speak("Sorry, there was an error creating your report. Please try again.");
+      speakMultiple(["Sorry, there was an error creating your report.", "Please try again."], 700);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const parseVoiceCommand = (command) => {
+    if (!command || typeof command !== "string") return null;
     const lowerCommand = command.toLowerCase();
-    
-    // Define issue types and their variations
+
     const issueTypes = {
-      'pothole': ['pothole', 'pot hole', 'road damage', 'hole in road', 'road hole'],
-      'streetlight': ['streetlight', 'street light', 'light', 'lamp post', 'street lamp'],
-      'garbage': ['garbage', 'trash', 'waste', 'rubbish', 'litter'],
-      'traffic': ['traffic signal', 'traffic light', 'signal', 'traffic'],
-      'sidewalk': ['sidewalk', 'footpath', 'walkway', 'pavement'],
-      'water': ['water leak', 'water', 'leak', 'pipe'],
-      'sewer': ['sewer', 'drain', 'sewage'],
-      'tree': ['tree', 'branch', 'fallen tree'],
-      'street sign': ['street sign', 'sign', 'road sign']
+      pothole: ["pothole", "pot hole", "road damage", "hole in road", "road hole"],
+      streetlight: ["streetlight", "street light", "light", "lamp post", "street lamp"],
+      garbage: ["garbage", "trash", "waste", "rubbish", "litter"],
+      traffic: ["traffic signal", "traffic light", "signal", "traffic"],
+      sidewalk: ["sidewalk", "footpath", "walkway", "pavement"],
+      water: ["water leak", "water", "leak", "pipe"],
+      sewer: ["sewer", "drain", "sewage"],
+      tree: ["tree", "branch", "fallen tree"],
+      "street sign": ["street sign", "sign", "road sign"],
     };
 
-    // Define location keywords for Nashik region
     const nashikLocations = {
-      'trimbak highway': { lat: 19.9317, lng: 73.5316 },
-      'nashik road': { lat: 19.9975, lng: 73.7898 },
-      'mumbai nashik highway': { lat: 19.9975, lng: 73.7898 },
-      'nashik city': { lat: 19.9975, lng: 73.7898 },
-      'panchavati': { lat: 19.9975, lng: 73.7898 },
-      'old nashik': { lat: 19.9975, lng: 73.7898 },
-      'new nashik': { lat: 19.9975, lng: 73.7898 },
-      'satpur': { lat: 19.9975, lng: 73.7898 },
-      'ambad': { lat: 19.9975, lng: 73.7898 },
-      'gangapur road': { lat: 19.9975, lng: 73.7898 },
-      'college road': { lat: 19.9975, lng: 73.7898 },
-      'sharanpur road': { lat: 19.9975, lng: 73.7898 }
+      "trimbak highway": { lat: 19.9317, lng: 73.5316 },
+      "nashik road": { lat: 19.9975, lng: 73.7898 },
+      "mumbai nashik highway": { lat: 19.9975, lng: 73.7898 },
+      panchavati: { lat: 19.9975, lng: 73.7898 },
+      satpur: { lat: 19.9975, lng: 73.7898 },
+      ambad: { lat: 19.9975, lng: 73.7898 },
+      "gangapur road": { lat: 19.9975, lng: 73.7898 },
+      "college road": { lat: 19.9975, lng: 73.7898 },
+      "sharanpur road": { lat: 19.9975, lng: 73.7898 },
     };
 
-    // Extract issue type
     let detectedIssueType = null;
     for (const [issueType, variations] of Object.entries(issueTypes)) {
-      if (variations.some(variation => lowerCommand.includes(variation))) {
+      if (variations.some((variation) => lowerCommand.includes(variation))) {
         detectedIssueType = issueType;
         break;
       }
     }
 
-    // Extract location
     let detectedLocation = null;
     let detectedCoords = null;
-    
+
     for (const [location, coords] of Object.entries(nashikLocations)) {
       if (lowerCommand.includes(location)) {
         detectedLocation = location;
@@ -189,50 +231,56 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
       }
     }
 
-    // If no specific location found, use user's current location
     if (!detectedLocation && userLocation) {
       detectedLocation = "current location";
       detectedCoords = userLocation;
     }
 
-    // Create description from command
     const description = command;
 
     if (detectedIssueType && detectedLocation) {
       return {
         issueType: detectedIssueType,
         location: detectedLocation,
-        description: description,
+        description,
         lat: detectedCoords?.lat,
-        lng: detectedCoords?.lng
+        lng: detectedCoords?.lng,
       };
     }
 
     return null;
   };
 
-  const startListening = () => {
-    if (recognitionRef.current) {
+  const startListening = async () => {
+    setFeedback(""); 
+    await getUserLocation(); 
+    if (!recognitionRef.current) {
+      setFeedback("❌ Speech recognition not supported in this browser.");
+      return;
+    }
+
+    try {
       recognitionRef.current.start();
-    } else {
-      setFeedback("Speech recognition not supported in this browser.");
+    } catch (err) {
+      console.error("Error starting speech recognition:", err);
+      setFeedback("❌ Could not start speech recognition.");
     }
   };
 
   const stopListening = () => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (err) {
+        console.warn("Error stopping recognition:", err);
+      }
     }
   };
 
   const toggleListening = () => {
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
+    if (isListening) stopListening();
+    else startListening();
   };
-
   return (
     <div className="card-dark p-6 space-y-6">
       <div className="flex items-center space-x-3 mb-6">
@@ -249,25 +297,22 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
 
       {/* Location Status */}
       <div className="flex items-center space-x-3 p-3 bg-gray-800/50 rounded-lg">
-        <div className={`w-3 h-3 rounded-full ${isLocationEnabled ? 'bg-green-500' : 'bg-red-500'}`}></div>
+        <div className={`w-3 h-3 rounded-full ${isLocationEnabled ? "bg-green-500" : "bg-red-500"}`}></div>
         <span className="text-sm text-gray-300">
-          {isLocationEnabled 
+          {isLocationEnabled
             ? `Location enabled: ${userLocation?.lat?.toFixed(4)}, ${userLocation?.lng?.toFixed(4)}`
-            : "Location access required for voice reports"
-          }
+            : "Location access required for voice reports"}
         </span>
       </div>
 
-      {/* Voice Control Button */}
+      {/* Voice Control */}
       <div className="flex justify-center">
         <button
           onClick={toggleListening}
-          disabled={isProcessing || !isLocationEnabled}
+          disabled={isProcessing}
           className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
-            isListening 
-              ? 'bg-red-500 animate-pulse shadow-lg shadow-red-500/50' 
-              : 'bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
-          } ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+            isListening ? "bg-red-500 animate-pulse shadow-lg shadow-red-500/50" : "bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+          } ${isProcessing ? "opacity-50 cursor-not-allowed" : "hover:scale-105"}`}
         >
           {isListening ? (
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -282,25 +327,25 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
         </button>
       </div>
 
-      {/* Status and Feedback */}
+      {/* Status */}
       <div className="text-center space-y-2">
         <p className="text-lg font-medium">
           {isListening ? "Listening..." : isProcessing ? "Processing..." : "Tap to speak"}
         </p>
         {feedback && (
           <div className={`p-3 rounded-lg text-sm ${
-            feedback.includes('✅') 
-              ? 'bg-green-500/20 border border-green-500/30 text-green-400' 
-              : feedback.includes('❌')
-              ? 'bg-red-500/20 border border-red-500/30 text-red-400'
-              : 'bg-blue-500/20 border border-blue-500/30 text-blue-400'
+            feedback.includes("✅")
+              ? "bg-green-500/20 border border-green-500/30 text-green-400"
+              : feedback.includes("❌")
+              ? "bg-red-500/20 border border-red-500/30 text-red-400"
+              : "bg-blue-500/20 border border-blue-500/30 text-blue-400"
           }`}>
             {feedback}
           </div>
         )}
       </div>
 
-      {/* Transcript Display */}
+      {/* Transcript */}
       {transcript && (
         <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
           <h3 className="text-sm font-medium text-gray-300 mb-2">Voice Input:</h3>
@@ -308,7 +353,7 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
         </div>
       )}
 
-      {/* Voice Command Examples */}
+      {/* Examples */}
       <div className="p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg border border-blue-500/20">
         <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
           <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -317,28 +362,15 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
           <span>Voice Command Examples</span>
         </h3>
         <div className="space-y-2 text-sm text-gray-300">
-          <p className="flex items-start space-x-2">
-            <span className="text-blue-400 mt-1">•</span>
-            <span>"There's a pothole on Trimbak Highway"</span>
-          </p>
-          <p className="flex items-start space-x-2">
-            <span className="text-blue-400 mt-1">•</span>
-            <span>"Streetlight not working on College Road"</span>
-          </p>
-          <p className="flex items-start space-x-2">
-            <span className="text-blue-400 mt-1">•</span>
-            <span>"Garbage collection issue in Panchavati area"</span>
-          </p>
-          <p className="flex items-start space-x-2">
-            <span className="text-blue-400 mt-1">•</span>
-            <span>"Traffic signal broken on Mumbai Nashik Highway"</span>
-          </p>
+          <p>"There's a pothole on Trimbak Highway"</p>
+          <p>"Streetlight not working on College Road"</p>
+          <p>"Garbage collection issue in Panchavati area"</p>
+          <p>"Traffic signal broken on Mumbai Nashik Highway"</p>
         </div>
       </div>
 
-      {/* Instructions */}
       <div className="text-xs text-gray-500 text-center">
-        <p>Make sure to mention the issue type and location clearly.</p>
+        <p>Mention the issue type and location clearly.</p>
         <p>Your current location will be used if no specific location is mentioned.</p>
       </div>
     </div>
