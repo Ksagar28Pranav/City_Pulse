@@ -16,9 +16,10 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
   useEffect(() => {
     if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
       recognitionRef.current = new window.webkitSpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
+      recognitionRef.current.continuous = true; // Keep listening
+      recognitionRef.current.interimResults = true; // Get interim results
       recognitionRef.current.lang = 'en-US';
+      recognitionRef.current.maxAlternatives = 1;
 
       recognitionRef.current.onstart = () => {
         setIsListening(true);
@@ -27,15 +28,36 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
       };
 
       recognitionRef.current.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setTranscript(transcript);
-        processVoiceCommand(transcript);
+        let finalTranscript = '';
+        let interimTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        // Show interim results while speaking
+        if (interimTranscript) {
+          setTranscript(interimTranscript);
+        }
+
+        // Process final result when user stops speaking
+        if (finalTranscript) {
+          setTranscript(finalTranscript);
+          processVoiceCommand(finalTranscript);
+        }
       };
 
       recognitionRef.current.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-        setFeedback("Error: " + event.error);
+        if (event.error !== 'no-speech') {
+          setIsListening(false);
+          setFeedback("Error: " + event.error);
+        }
       };
 
       recognitionRef.current.onend = () => {
@@ -258,35 +280,52 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
         </span>
       </div>
 
-      {/* Voice Control Button */}
-      <div className="flex justify-center">
-        <button
-          onClick={toggleListening}
-          disabled={isProcessing || !isLocationEnabled}
-          className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
-            isListening 
-              ? 'bg-red-500 animate-pulse shadow-lg shadow-red-500/50' 
-              : 'bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
-          } ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
-        >
-          {isListening ? (
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-            </svg>
-          ) : (
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-            </svg>
-          )}
-        </button>
-      </div>
+             {/* Voice Control Button */}
+       <div className="flex justify-center space-x-4">
+         <button
+           onClick={toggleListening}
+           disabled={isProcessing || !isLocationEnabled}
+           className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
+             isListening 
+               ? 'bg-red-500 animate-pulse shadow-lg shadow-red-500/50' 
+               : 'bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
+           } ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+         >
+           {isListening ? (
+             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+             </svg>
+           ) : (
+             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+             </svg>
+           )}
+         </button>
+         
+         {isListening && (
+           <button
+             onClick={stopListening}
+             className="w-20 h-20 bg-gray-600 hover:bg-gray-700 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105"
+             title="Stop Listening"
+           >
+             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+             </svg>
+           </button>
+         )}
+       </div>
 
-      {/* Status and Feedback */}
-      <div className="text-center space-y-2">
-        <p className="text-lg font-medium">
-          {isListening ? "Listening..." : isProcessing ? "Processing..." : "Tap to speak"}
-        </p>
+             {/* Status and Feedback */}
+       <div className="text-center space-y-2">
+         <p className="text-lg font-medium">
+           {isListening ? "🎤 Listening... Speak now!" : isProcessing ? "🔄 Processing..." : "Tap to speak"}
+         </p>
+         {isListening && (
+           <p className="text-sm text-gray-400">
+             Speak clearly and click the X button when done
+           </p>
+         )}
         {feedback && (
           <div className={`p-3 rounded-lg text-sm ${
             feedback.includes('✅') 

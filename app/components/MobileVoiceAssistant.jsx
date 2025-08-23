@@ -17,9 +17,10 @@ export default function MobileVoiceAssistant({ token, onReportCreated, role }) {
   useEffect(() => {
     if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
       recognitionRef.current = new window.webkitSpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
+      recognitionRef.current.continuous = true; // Keep listening
+      recognitionRef.current.interimResults = true; // Get interim results
       recognitionRef.current.lang = 'en-US';
+      recognitionRef.current.maxAlternatives = 1;
 
       recognitionRef.current.onstart = () => {
         setIsListening(true);
@@ -28,15 +29,36 @@ export default function MobileVoiceAssistant({ token, onReportCreated, role }) {
       };
 
       recognitionRef.current.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setTranscript(transcript);
-        processVoiceCommand(transcript);
+        let finalTranscript = '';
+        let interimTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        // Show interim results while speaking
+        if (interimTranscript) {
+          setTranscript(interimTranscript);
+        }
+
+        // Process final result when user stops speaking
+        if (finalTranscript) {
+          setTranscript(finalTranscript);
+          processVoiceCommand(finalTranscript);
+        }
       };
 
       recognitionRef.current.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-        setFeedback("❌ Error: " + event.error);
+        if (event.error !== 'no-speech') {
+          setIsListening(false);
+          setFeedback("❌ Error: " + event.error);
+        }
       };
 
       recognitionRef.current.onend = () => {

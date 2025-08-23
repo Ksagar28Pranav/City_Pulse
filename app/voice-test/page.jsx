@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import VoiceAssistant from "../components/VoiceAssistant";
 import MobileVoiceAssistant from "../components/MobileVoiceAssistant";
 
@@ -7,10 +7,17 @@ export default function VoiceTestPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [testReports, setTestReports] = useState([]);
 
-  // Check if mobile on component mount
-  if (typeof window !== 'undefined' && !isMobile) {
-    setIsMobile(window.innerWidth <= 768);
-  }
+  useEffect(() => {
+    // Check if mobile on component mount
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleTestReport = (report) => {
     setTestReports(prev => [...prev, report]);
@@ -32,19 +39,31 @@ export default function VoiceTestPage() {
         <div className="text-center space-y-4">
           <h1 className="text-3xl font-bold">🎤 Voice Assistant Test</h1>
           <p className="text-lg text-gray-300">
-            Test the voice assistant functionality
+            Test the improved voice assistant functionality
           </p>
         </div>
 
         {/* Instructions */}
         <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
-          <h2 className="text-xl font-bold mb-3">📋 Quick Instructions:</h2>
+          <h2 className="text-xl font-bold mb-3">📋 How to Use (IMPROVED):</h2>
           <ol className="space-y-2 text-sm">
             <li>1. <strong>Allow microphone and location permissions</strong> when prompted</li>
             <li>2. <strong>Click the green microphone button</strong> to start listening</li>
-            <li>3. <strong>Speak clearly</strong> using one of the example commands below</li>
-            <li>4. <strong>Listen for confirmation</strong> and check the reports below</li>
+            <li>3. <strong>Speak your complete sentence</strong> - it will show what you're saying in real-time</li>
+            <li>4. <strong>Click the X button when done</strong> or wait for it to process automatically</li>
+            <li>5. <strong>Listen for confirmation</strong> and check the reports below</li>
           </ol>
+        </div>
+
+        {/* Important Note */}
+        <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4">
+          <h3 className="text-lg font-bold mb-2">✅ What's Fixed:</h3>
+          <ul className="space-y-1 text-sm">
+            <li>• <strong>Continuous listening</strong> - won't stop mid-sentence</li>
+            <li>• <strong>Real-time feedback</strong> - see what you're saying as you speak</li>
+            <li>• <strong>Manual stop button</strong> - click X when you're done</li>
+            <li>• <strong>Better error handling</strong> - won't stop on silence</li>
+          </ul>
         </div>
 
         {/* Example Commands */}
@@ -113,10 +132,11 @@ export default function VoiceTestPage() {
         <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-lg p-4">
           <h3 className="text-lg font-bold mb-3">🔧 Troubleshooting:</h3>
           <ul className="space-y-2 text-sm">
+            <li>• <strong>Still cutting off?</strong> Try speaking slower and more clearly</li>
+            <li>• <strong>Not recognizing?</strong> Make sure you mention issue type and location</li>
             <li>• <strong>No microphone access?</strong> Check browser permissions</li>
-            <li>• <strong>Not working on mobile?</strong> Try the floating button</li>
-            <li>• <strong>Speech not recognized?</strong> Speak clearly and slowly</li>
             <li>• <strong>Location issues?</strong> Enable GPS and location services</li>
+            <li>• <strong>Use the X button</strong> to manually stop when you're done speaking</li>
           </ul>
         </div>
 
