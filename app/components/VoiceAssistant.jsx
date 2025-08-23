@@ -265,17 +265,30 @@ export default function VoiceAssistant({ token, onReportCreated, role }) {
 
   const startListening = async () => {
     setFeedback(""); 
+    
+    // First check microphone permissions
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log("✅ Microphone permission granted");
+    } catch (err) {
+      console.error("❌ Microphone permission denied:", err);
+      setFeedback("❌ Microphone permission denied. Please allow microphone access.");
+      return;
+    }
+    
     await getUserLocation(); 
+    
     if (!recognitionRef.current) {
       setFeedback("❌ Speech recognition not supported in this browser.");
       return;
     }
 
     try {
+      console.log("🎤 Starting speech recognition...");
       recognitionRef.current.start();
     } catch (err) {
       console.error("Error starting speech recognition:", err);
-      setFeedback("❌ Could not start speech recognition.");
+      setFeedback("❌ Could not start speech recognition: " + err.message);
     }
   };
 

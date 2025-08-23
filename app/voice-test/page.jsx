@@ -177,6 +177,15 @@ export default function VoiceTestPage() {
             <li>• <strong>Location issues?</strong> Enable GPS and location services</li>
             <li>• <strong>Use the X button</strong> to manually stop when you're done speaking</li>
           </ul>
+          
+          <div className="mt-4 text-center">
+            <a 
+              href="/mic-test"
+              className="inline-block bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              🔧 Test Microphone & Debug Issues
+            </a>
+          </div>
         </div>
 
         {/* Back to Dashboard */}
