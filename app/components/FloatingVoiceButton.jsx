@@ -116,15 +116,25 @@ export default function FloatingVoiceButton({ token, onReportCreated }) {
       const parsedData = parseVoiceCommand(command);
       
       if (parsedData) {
+        // Ensure we have location data
+        if (!userLocation && !parsedData.lat) {
+          setFeedback("❌ Location required. Please enable location services.");
+          speak("Location is required to create a report. Please enable location services.");
+          return;
+        }
+
         const reportData = {
           type: parsedData.issueType,
           description: parsedData.description,
           lat: userLocation?.lat || parsedData.lat,
           lng: userLocation?.lng || parsedData.lng,
-          voiceCommand: command
+          voiceCommand: command,
+          location: parsedData.location || "Current Location"
         };
 
+        console.log("🎤 Creating report with data:", reportData);
         const response = await createReport(reportData, token);
+        console.log("✅ Report created successfully:", response.data);
         
         setFeedback(`✅ Report created! ${parsedData.issueType} at ${parsedData.location}`);
         speak(`Report submitted successfully. A ${parsedData.issueType} issue has been reported at ${parsedData.location}.`);
@@ -144,9 +154,23 @@ export default function FloatingVoiceButton({ token, onReportCreated }) {
         speak("I couldn't understand your command. Please try speaking more clearly.");
       }
     } catch (error) {
-      console.error('Error processing voice command:', error);
-      setFeedback("❌ Error creating report. Please try again.");
-      speak("Sorry, there was an error creating your report. Please try again.");
+      console.error('❌ Error processing voice command:', error);
+      
+      if (error.response) {
+        // Backend error
+        console.error("Backend error:", error.response.data);
+        setFeedback(`❌ Backend error: ${error.response.data.message || 'Unknown error'}`);
+        speak("There was an error with the server. Please try again later.");
+      } else if (error.request) {
+        // Network error
+        console.error("Network error:", error.request);
+        setFeedback("❌ Network error. Please check your connection.");
+        speak("Network error. Please check your internet connection.");
+      } else {
+        // Other error
+        setFeedback("❌ Error creating report. Please try again.");
+        speak("Sorry, there was an error creating your report. Please try again.");
+      }
     } finally {
       setIsProcessing(false);
     }
